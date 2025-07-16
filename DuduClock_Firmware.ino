@@ -4,6 +4,7 @@
 #include "PreferencesUtil.h"
 #include "tftUtil.h"
 #include "task.h"
+#include "BrightnessManager.h"
 
 /**
 Dudu天气时钟  版本2.1
@@ -23,8 +24,29 @@ int synDataRestartTime = 60; // 同步NTP时间和天气信息时，超过多少
 bool isCouting = false; // 计时器是否正在工作
 OneButton myButton(BUTTON, true);
 
+const int GATE_PIN = 6;  // GPIO6 connected to NMOS gate
+
+// PWM configuration
+const int PWM_FREQ = 5000;     // 5kHz frequency
+const int PWM_CHANNEL = 0;     // PWM channel 0
+const int PWM_RESOLUTION = 8;  // 8-bit resolution (0-255)
+const int PWM_DUTY_CYCLE = 255; // 100% duty cycle (maximum brightness)
+
+BrightnessManager brightManager(0, 255);
+
 void setup() {
   Serial.begin(115200);
+
+  brightManager.init();
+ // Initialize PWM channel
+  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
+  
+  // Attach PWM channel to GPIO pin
+  ledcAttachPin(GATE_PIN, PWM_CHANNEL);
+  
+  // Set PWM duty cycle to 100% (maximum brightness)
+  ledcWrite(PWM_CHANNEL, 127);
+
   // TFT初始化
   tftInit();
   // 显示系统启动文字
@@ -60,6 +82,16 @@ void setup() {
 }
 
 void loop() {
+
+  brightManager.handle(); 
+
+  ledcWrite(PWM_CHANNEL, brightManager.getCurrentBrightness());
+  
+  Serial.print("Current Brightness: ");
+  Serial.println(brightManager.getCurrentBrightness());
+  Serial.println(brightManager.getRawLightValue());
+
+  
   myButton.tick();
   switch(currentPage){
     case SETTING:  // 配置页面
