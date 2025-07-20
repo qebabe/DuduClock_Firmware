@@ -87,9 +87,9 @@ void loop() {
 
   ledcWrite(PWM_CHANNEL, brightManager.getCurrentBrightness());
   
-  Serial.print("Current Brightness: ");
-  Serial.println(brightManager.getCurrentBrightness());
-  Serial.println(brightManager.getRawLightValue());
+  // Serial.print("Current Brightness: ");
+  // Serial.println(brightManager.getCurrentBrightness());
+  // Serial.println(brightManager.getRawLightValue());
 
   
   myButton.tick();

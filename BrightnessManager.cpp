@@ -37,8 +37,8 @@ void BrightnessManager::init() {
     // Calculate initial brightness
     calculateBrightnessValue();
     
-    Serial.print("BrightnessManager initialized with brightness: ");
-    Serial.println(_currentBrightness);
+    // Serial.print("BrightnessManager initialized with brightness: ");
+    // Serial.println(_currentBrightness);
 }
 
 void BrightnessManager::handle() {
@@ -57,11 +57,11 @@ void BrightnessManager::handleBrightnessSampling() {
         
         // 详细调试信息
         // Detailed debug information
-        Serial.print("Raw ADC reading: ");
-        Serial.print(sensorValue);
-        Serial.print(" (");
-        Serial.print((float)sensorValue / 4095.0 * 3.3);
-        Serial.println("V)");
+        // Serial.print("Raw ADC reading: ");
+        // Serial.print(sensorValue);
+        // Serial.print(" (");
+        // Serial.print((float)sensorValue / 4095.0 * 3.3);
+        // Serial.println("V)");
         
         // 累加样本
         // Accumulate sample
@@ -94,7 +94,7 @@ void BrightnessManager::calculateBrightnessValue() {
     // Apply the new brightness logic
     if (val >= 3000) {
         // Map full ADC range (0-4095) to brightness range (0-255)
-        int mappedBrightness = map(val, 3000, 4095, 0, 255);
+        int mappedBrightness = map(val, 3100, 4095, 100, 255);
         
         // Constrain to the configured brightness range
         _currentBrightness = constrain(mappedBrightness, _minBrightness, _maxBrightness);
@@ -104,12 +104,12 @@ void BrightnessManager::calculateBrightnessValue() {
     }
     
     // Print debug information
-    Serial.print("Sample count: ");
-    Serial.print(_brightSamplingTime);
-    Serial.print(", Average value: ");
-    Serial.print(val);
-    Serial.print(", Current brightness: ");
-    Serial.println(_currentBrightness);
+    // Serial.print("Sample count: ");
+    // Serial.print(_brightSamplingTime);
+    // Serial.print(", Average value: ");
+    // Serial.print(val);
+    // Serial.print(", Current brightness: ");
+    // Serial.println(_currentBrightness);
     
     // Reset counters for next calculation cycle
     _brightSamplingTime = 0;
@@ -124,10 +124,10 @@ void BrightnessManager::setBrightnessRange(uint8_t minBrightness, uint8_t maxBri
     _minBrightness = minBrightness;
     _maxBrightness = maxBrightness;
     
-    Serial.print("Brightness range updated: ");
-    Serial.print(_minBrightness);
-    Serial.print(" - ");
-    Serial.println(_maxBrightness);
+    // Serial.print("Brightness range updated: ");
+    // Serial.print(_minBrightness);
+    // Serial.print(" - ");
+    // Serial.println(_maxBrightness);
 }
 
 uint8_t BrightnessManager::getMinBrightness() const {
