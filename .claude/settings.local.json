@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/wangshixiao/Downloads/DuduClock_Firmware status)",
+      "Bash(git -C /Users/wangshixiao/Downloads/DuduClock_Firmware log origin/main --oneline -3)",
+      "Bash(git -C /Users/wangshixiao/Downloads/DuduClock_Firmware log main --oneline -3)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://github.com/qebabe/DuduClock_Firmware)",
+      "Bash(curl -sI https://github.com/qebabe/DuduClock_Firmware)",
+      "Bash(curl -s https://api.github.com/repos/qebabe/DuduClock_Firmware)",
+      "Bash(git config:*)",
+      "Bash(gh auth:*)",
+      "Bash(git -C /Users/wangshixiao/Downloads/DuduClock_Firmware push origin main:main)",
+      "Bash(git remote:*)",
+      "Bash(security find-internet-password:*)"
+    ]
+  }
+}
