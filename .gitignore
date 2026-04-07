@@ -6,3 +6,4 @@ build/
 
 .build_s3/
 *.pem
+.claude
