@@ -3,3 +3,6 @@
 
 # Ignore build directory
 build/
+
+.build_s3/
+*.pem
