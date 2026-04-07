@@ -8,6 +8,7 @@ String scrollText[5]; // 轮播天气的信息
 int currentIndex = 0; // 轮播索引
 int currnetImgAnimIndex = 0; // 太空人动画索引
 int tipsIndex = 0; // 获取数据时，动态文字的索引
+volatile bool showTipsTick = false;
 NowWeather nowWeather; // 记录查询到的实况天气数据
 FutureWeather futureWeather; // 记录查询到的七日天气数据
 unsigned int timerCount = 0; // 计数器的值(ms)
@@ -73,7 +74,29 @@ void IRAM_ATTR onTimerQueryWeather() {
   tQueryFutureWeather.enable();
 } 
 void IRAM_ATTR onTimerShowTips() {
-  // 获取数据时给用户提示
+  showTipsTick = true;
+} 
+// 初始化定时器，让查询天气的多线程任务在一小时后再使能
+void startTimerQueryWeather(){
+  timerQueryWeather = timerBegin(1000000);// 1us计数一次
+  timerAttachInterrupt(timerQueryWeather, &onTimerQueryWeather); 
+  timerAlarm(timerQueryWeather, 3600000000, false, 0); // 执行完一次后就取消这个定时器 (3600000000)3600秒，即60分钟后使能
+}
+// 初始化定时器，在获取初始数据时，给用户提示
+void startTimerShowTips(){
+  timerShowTips = timerBegin(1000000);// 1us计数一次
+  timerAttachInterrupt(timerShowTips, &onTimerShowTips); 
+  tipsIndex = 0;
+  showTipsTick = false;
+  timerAlarm(timerShowTips, 1000000, true, 0); // 每秒执行一次
+}
+
+void processShowTips(){
+  if(!showTipsTick){
+    return;
+  }
+
+  showTipsTick = false;
   if(tipsIndex == 0){
     draw2LineText("同步天气数据",".");
   }else if(tipsIndex == 1){
@@ -84,27 +107,14 @@ void IRAM_ATTR onTimerShowTips() {
     draw2LineText("同步天气数据","....");
   }else if(tipsIndex == 4){
     draw2LineText("同步天气数据",".....");
-  }else if(tipsIndex == 5){
+  }else{
     draw2LineText("同步天气数据","......");
   }
+
   tipsIndex++;
   if(tipsIndex == 6){
     tipsIndex = 0;
   }
-}
-// 初始化定时器，让查询天气的多线程任务在一小时后再使能
-void startTimerQueryWeather(){
-  timerQueryWeather = timerBegin(0, 80, true);// 1us计数一次
-  timerAttachInterrupt(timerQueryWeather, &onTimerQueryWeather, true); 
-  timerAlarmWrite(timerQueryWeather, 3600000000, false); // 执行完一次后就取消这个定时器 (3600000000)3600秒，即60分钟后使能
-  timerAlarmEnable(timerQueryWeather); 
-}
-// 初始化定时器，在获取初始数据时，给用户提示
-void startTimerShowTips(){
-  timerShowTips = timerBegin(1, 80, true);// 1us计数一次
-  timerAttachInterrupt(timerShowTips, &onTimerShowTips, true); 
-  timerAlarmWrite(timerShowTips, 1000000, true); // 每秒执行一次
-  timerAlarmEnable(timerShowTips); 
 }
 ///////////////////////////////////////////////////////////////////////
 

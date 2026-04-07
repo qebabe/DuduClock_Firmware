@@ -5,6 +5,7 @@
 
 void startTimerShowTips();
 void startTimerQueryWeather();
+void processShowTips();
 extern String scrollText[5];
 extern hw_timer_t *timerQueryWeather;
 extern hw_timer_t *timerShowTips;

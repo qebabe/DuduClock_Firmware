@@ -39,13 +39,10 @@ void setup() {
 
   brightManager.init();
  // Initialize PWM channel
-  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
-  
-  // Attach PWM channel to GPIO pin
-  ledcAttachPin(GATE_PIN, PWM_CHANNEL);
+  ledcAttachChannel(GATE_PIN, PWM_FREQ, PWM_RESOLUTION, PWM_CHANNEL);
   
   // Set PWM duty cycle to 100% (maximum brightness)
-  ledcWrite(PWM_CHANNEL, 127);
+  ledcWrite(GATE_PIN, 127);
 
   // TFT初始化
   tftInit();
@@ -85,7 +82,7 @@ void loop() {
 
   brightManager.handle(); 
 
-  ledcWrite(PWM_CHANNEL, brightManager.getCurrentBrightness());
+  ledcWrite(GATE_PIN, brightManager.getCurrentBrightness());
   
   // Serial.print("Current Brightness: ");
   // Serial.println(brightManager.getCurrentBrightness());
@@ -227,12 +224,13 @@ void initDatas(){
     if((end - start) > synDataRestartTime){
       restartSystem("同步数据失败", true);
     }
+    processShowTips();
     Serial.println("时钟对时失败...");
     getNTPTime();
   }
   Serial.println("对时成功");
   // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
-  if(location.equals("")){
+  if(location.equals("") || latitude.equals("") || longitude.equals("")){
     getCityID();
   }
   //第一次查询实况天气,如果查询失败，就一直反复查询
@@ -243,6 +241,7 @@ void initDatas(){
     if((end - start) > synDataRestartTime){
       restartSystem("同步数据失败", true);
     }
+    processShowTips();
     getNowWeather();
   }
   //第一次查询空气质量,如果查询失败，就一直反复查询
@@ -253,6 +252,7 @@ void initDatas(){
     if((end - start) > synDataRestartTime){
       restartSystem("同步数据失败", true);
     }
+    processShowTips();
     getAir();
   }
   //第一次查询一周天气,如果查询失败，就一直反复查询
@@ -263,6 +263,7 @@ void initDatas(){
     if((end - start) > synDataRestartTime){
       restartSystem("同步数据失败", true);
     }
+    processShowTips();
     getFutureWeather();
   }
   //结束循环显示提示文字的定时器

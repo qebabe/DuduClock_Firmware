@@ -62,7 +62,7 @@
 #define BACK_BLACK 0
 #define BACK_WHITE 1
 #define D4 12  // 开发板D4灯
-#define BUTTON 8 // 按钮引脚
+#define BUTTON 0 // 按钮引脚，使用 ESP32-S3 开发板 BOOT 键
 
 // 和风天气接口
 const String cityURL = "/geo/v2/city/lookup";  // 查询城市代码的接口

@@ -20,6 +20,8 @@ extern String pass;
 extern String city;
 extern String adm;
 extern String location;
+extern String latitude;
+extern String longitude;
 extern bool isStartQuery;
 
 extern String publicKeyMm;
@@ -30,5 +32,10 @@ extern String projectID;
 
 extern char charPrivateKey[65];
 extern char charPublicKey[61];
+extern char PrivateKey[];
+extern char PublicKey[];
+extern String KeyID;
+extern String ApiHost;
+extern String ProjectID;
 
 #endif

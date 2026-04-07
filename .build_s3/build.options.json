@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "../..,../..,../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../../..,../../..,../..,../..,../..,../..,../..,../..,../..,../..,../..,../..",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=huge_app",
+  "hardwareFolders": "/Users/wangshixiao/Library/Arduino15/packages/esp32/hardware/esp32/3.3.7-cn,/Users/wangshixiao/Library/Arduino15/packages/esp32/hardware/esp32/3.3.7-cn",
+  "otherLibrariesFolders": "/Users/wangshixiao/Documents/Arduino/libraries",
+  "sketchLocation": "/Users/wangshixiao/Downloads/DuduClock_Firmware"
+}

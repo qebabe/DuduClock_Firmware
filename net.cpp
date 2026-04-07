@@ -1,6 +1,6 @@
-#include <HTTPClient.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <NetworkClientSecure.h>
 #include <ArduinoJson.h>
 #include "ArduinoZlib.h"
 #include "common.h"
@@ -18,11 +18,11 @@ char* stringToCharArray(String input) {
   return tt;
 }
 // 和风天气身份认证，需要替换成你们自己的
-// char PrivateKey[] = "MC4CAQAwBQYDK2VwBCIEIOfum6HqGq3CQcAh+jLF9Ya+z8GCtJBQYSvJK3ZydlGb";   // 私钥
-// char PublicKey[] = "MCowBQYDK2VwAyEAVXb3A7PmObqaZ6dS804CUcCIn+mnE5HXUtbFNUaBRgI=";        // 公钥
-// String KeyID = "TDPPQDUQ82";                                                              // 凭据ID
-// String ProjectID = "46E5F9629K";                                                          // 项目ID
-// String ApiHost = "p94wct6fvw.re.qweatherapi.com";                                         // API Host
+char PrivateKey[] = "MC4CAQAwBQYDK2VwBCIEIITdRIErG+dV4zUwzrNR3OtFg2PbimwiAGzNYwWpvXhLa";   // 私钥
+char PublicKey[] = "MCowBQYDK2VwAyEA5Yb5bKbINXHF4xs145CGiMaM1znmbv3lOX264bbAbig=a";        // 公钥
+String KeyID = "KDGWMJF5XWa";                                                              // 凭据ID
+String ProjectID = "2F2DGVW8QHa";                                                          // 项目ID
+String ApiHost = "my2x88mtw4a.re.qweatherapi.com";                                         // API Host
 
 void sendNTPpacket(IPAddress &address);
 void startAP();
@@ -33,6 +33,10 @@ void handleRoot();
 void handleConfigWifi();
 void restartSystem(String msg, bool endTips);
 String urlEncode(const String& text);
+bool httpsGet(String url, const String &bearerToken, String &responseBody, int &httpCode);
+bool decompressGzipBody(uint8_t *compressedBody, size_t compressedSize, String &responseBody);
+void appendBytesToString(const uint8_t *buffer, size_t length, String &target);
+String getPollutantValue(const JsonArray &pollutants, const char *code);
 
 bool queryNowWeatherSuccess = false;
 bool queryFutureWeatherSuccess = false;
@@ -53,6 +57,8 @@ String pass;  //WIFI密码
 String city;  // 城市
 String adm; // 上级城市区划
 String location; // 城市ID
+String latitude; // 纬度
+String longitude; // 经度
 String WifiNames; // 根据搜索到的wifi生成的option字符串
 // SoftAP相关
 const char *APssid = "DuduClock";
@@ -64,10 +70,7 @@ WebServer server(80);
 int queryTimeout = 6000;
 // 是否是刚启动时查询天气
 bool isStartQuery = true; 
-// 天气接口相关
-static HTTPClient httpClient;
 String data = "";
-uint8_t *outbuf;
 
 // 开启SoftAP进行配网
 void wifiConfigBySoftAP(){
@@ -283,53 +286,21 @@ void getCityID(){
   // Serial.println(jwt);
   bool flag = false; // 是否成功获取到城市id的标志
   String url = "https://" + apiHost + cityURL + "?location=" + urlEncode(city) + "&adm=" + urlEncode(adm);
-  // Serial.println(url);
-  httpClient.setConnectTimeout(queryTimeout * 5);
-  httpClient.begin(url);
-  httpClient.addHeader("Authorization", "Bearer " + jwt);
-  //启动连接并发送HTTP请求
-  int httpCode = httpClient.GET();
+  int httpCode = 0;
   Serial.println("正在获取城市id");
-  // 处理服务器答复
-  if (httpCode == HTTP_CODE_OK) {
-    // 解压Gzip数据流
-    int len = httpClient.getSize();
-    uint8_t buff[2048] = { 0 };
-    WiFiClient *stream = httpClient.getStreamPtr();
-    while (httpClient.connected() && (len > 0 || len == -1)) {
-      size_t size = stream->available();  // 还剩下多少数据没有读完？
-      // Serial.println(size);
-      if (size) {
-        size_t realsize = ((size > sizeof(buff)) ? sizeof(buff) : size);
-        // Serial.println(realsize);
-        size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
-        if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
-        uint32_t outprintsize = 0;
-        int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
-        // Serial.write(outbuf, outprintsize);
-        for (int i = 0; i < outprintsize; i++) {
-          data += (char)outbuf[i];
-        }
-        free(outbuf);
-        Serial.println(data);
-      }
-      delay(1);
-    }
-    // 解压完，转换json数据
+  if (httpsGet(url, jwt, data, httpCode) && httpCode == 200) {
     StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DeserializationError error = deserializeJson(doc, data); //反序列化JSON数据
-     Serial.println("正在获取城市id-----2");
     if(!error){ //检查反序列化是否成功
       //读取json节点
       String code = doc["code"].as<const char*>();
-      Serial.println("正在获取城市id-----3");
       if(code.equals("200")){
         flag = true;
         // 多结果的情况下，取第一个
         city = doc["location"][0]["name"].as<const char*>();
         location = doc["location"][0]["id"].as<const char*>();
+        latitude = doc["location"][0]["lat"].as<const char*>();
+        longitude = doc["location"][0]["lon"].as<const char*>();
         Serial.println("城市id :" + location);
         // 将信息存入nvs中
         setWiFiCity();
@@ -344,8 +315,6 @@ void getCityID(){
     restartSystem("城市名称无效", false);
   }
   Serial.println("获取成功");
-  //关闭与服务器连接
-  httpClient.end();
 }
 
 // 查询实时天气
@@ -355,41 +324,10 @@ void getNowWeather(){
   data = "";
   queryNowWeatherSuccess = false; // 先置为false
   String url = "https://" + apiHost + nowURL + "?location=" + location;
-  httpClient.setConnectTimeout(queryTimeout);
-  httpClient.begin(url);
-  httpClient.addHeader("Authorization", "Bearer " + jwt);
-  //启动连接并发送HTTP请求
-  int httpCode = httpClient.GET();
+  int httpCode = 0;
   // Serial.println(ESP.getFreeHeap());
   Serial.println("正在获取天气数据");
-  //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
-  if (httpCode == HTTP_CODE_OK) {
-    // 解压Gzip数据流
-    int len = httpClient.getSize();
-    uint8_t buff[2048] = { 0 };
-    WiFiClient *stream = httpClient.getStreamPtr();
-    while (httpClient.connected() && (len > 0 || len == -1)) {
-      size_t size = stream->available();  // 还剩下多少数据没有读完？
-      // Serial.println(size);
-      if (size) {
-        size_t realsize = ((size > sizeof(buff)) ? sizeof(buff) : size);
-        // Serial.println(realsize);
-        size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
-        if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
-        uint32_t outprintsize = 0;
-        int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
-        // Serial.write(outbuf, outprintsize);
-        for (int i = 0; i < outprintsize; i++) {
-          data += (char)outbuf[i];
-        }
-        free(outbuf);
-        Serial.println(data);
-      }
-      delay(1);
-    }
-    // 解压完，转换json数据
+  if (httpsGet(url, jwt, data, httpCode) && httpCode == 200) {
     StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DeserializationError error = deserializeJson(doc, data); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
@@ -422,8 +360,6 @@ void getNowWeather(){
       restartSystem("和风天气401错误", false);
     }
   }
-  //关闭与服务器连接
-  httpClient.end();
 }
 // 查询空气质量
 void getAir(){
@@ -431,56 +367,25 @@ void getAir(){
   String jwt = generateJWT(charPrivateKey, charPublicKey, keyID, projectID);
   data = "";
   queryAirSuccess = false; // 先置为false
-  String url = "https://" + apiHost + airURL + "?location=" + location;
-  httpClient.setConnectTimeout(queryTimeout);
-  httpClient.begin(url);
-  httpClient.addHeader("Authorization", "Bearer " + jwt);
-  //启动连接并发送HTTP请求
-  int httpCode = httpClient.GET();
+  String url = "https://" + apiHost + "/airquality/v1/current/" + latitude + "/" + longitude;
+  int httpCode = 0;
   Serial.println("正在获取空气质量数据");
-  //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
-  if (httpCode == HTTP_CODE_OK) {
-    // 解压Gzip数据流
-    int len = httpClient.getSize();
-    uint8_t buff[2048] = { 0 };
-    WiFiClient *stream = httpClient.getStreamPtr();
-    while (httpClient.connected() && (len > 0 || len == -1)) {
-      size_t size = stream->available();  // 还剩下多少数据没有读完？
-      // Serial.println(size);
-      if (size) {
-        size_t realsize = ((size > sizeof(buff)) ? sizeof(buff) : size);
-        // Serial.println(realsize);
-        size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
-        if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 20480);
-        uint32_t outprintsize = 0;
-        int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 20480, outprintsize);
-        // Serial.write(outbuf, outprintsize);
-        for (int i = 0; i < outprintsize; i++) {
-          data += (char)outbuf[i];
-        }
-        free(outbuf);
-        Serial.println(data);
-      }
-      delay(1);
-    }
-    // 解压完，转换json数据
+  if (httpsGet(url, jwt, data, httpCode) && httpCode == 200) {
     StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DeserializationError error = deserializeJson(doc, data); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
-      //读取json节点
-      String code = doc["code"].as<const char*>();
-      if(code.equals("200")){
+      JsonArray indexes = doc["indexes"].as<JsonArray>();
+      JsonArray pollutants = doc["pollutants"].as<JsonArray>();
+      if(!indexes.isNull() && !pollutants.isNull() && indexes.size() > 0){
         queryAirSuccess = true;
-        //读取json节点
-        nowWeather.air = doc["now"]["aqi"].as<int>();
-        nowWeather.pm10 = doc["now"]["pm10"].as<const char*>();
-        nowWeather.pm2p5 = doc["now"]["pm2p5"].as<const char*>();
-        nowWeather.no2 = doc["now"]["no2"].as<const char*>();
-        nowWeather.so2 = doc["now"]["so2"].as<const char*>();
-        nowWeather.co = doc["now"]["co"].as<const char*>();
-        nowWeather.o3 = doc["now"]["o3"].as<const char*>();
+        JsonObject firstIndex = indexes[0];
+        nowWeather.air = firstIndex["aqi"].as<int>();
+        nowWeather.pm10 = getPollutantValue(pollutants, "pm10");
+        nowWeather.pm2p5 = getPollutantValue(pollutants, "pm2p5");
+        nowWeather.no2 = getPollutantValue(pollutants, "no2");
+        nowWeather.so2 = getPollutantValue(pollutants, "so2");
+        nowWeather.co = getPollutantValue(pollutants, "co");
+        nowWeather.o3 = getPollutantValue(pollutants, "o3");
         Serial.println("获取成功");
       }
     }  
@@ -489,8 +394,6 @@ void getAir(){
     Serial.print("请求空气质量错误：");
     Serial.println(httpCode);
   }
-  //关闭与服务器连接
-  httpClient.end();
 }
 // 查询未来天气，经过实况天气一环，城市名称肯定是合法的，所以无需再检验
 void getFutureWeather(){
@@ -499,40 +402,9 @@ void getFutureWeather(){
   data = "";
   queryFutureWeatherSuccess = false; // 先置为false
   String url = "https://" + apiHost + futureURL + "?location=" + location;
-  httpClient.setConnectTimeout(queryTimeout);
-  httpClient.begin(url);
-  httpClient.addHeader("Authorization", "Bearer " + jwt);
-  //启动连接并发送HTTP请求
-  int httpCode = httpClient.GET();
+  int httpCode = 0;
   Serial.println("正在获取一周天气数据");
-  //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
-  if (httpCode == HTTP_CODE_OK) {
-    // 解压Gzip数据流
-    int len = httpClient.getSize();
-    uint8_t buff[2048] = { 0 };
-    WiFiClient *stream = httpClient.getStreamPtr();
-    while (httpClient.connected() && (len > 0 || len == -1)) {
-      size_t size = stream->available();  // 还剩下多少数据没有读完？
-      // Serial.println(size);
-      if (size) {
-        size_t realsize = ((size > sizeof(buff)) ? sizeof(buff) : size);
-        // Serial.println(realsize);
-        size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
-        if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
-        uint32_t outprintsize = 0;
-        int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
-        // Serial.write(outbuf, outprintsize);
-        for (int i = 0; i < outprintsize; i++) {
-          data += (char)outbuf[i];
-        }
-        free(outbuf);
-        Serial.println(data);
-      }
-      delay(1);
-    }
-    // 解压完，转换json数据
+  if (httpsGet(url, jwt, data, httpCode) && httpCode == 200) {
     StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DeserializationError error = deserializeJson(doc, data); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
@@ -591,8 +463,6 @@ void getFutureWeather(){
     Serial.print("请求一周天气错误：");
     Serial.println(httpCode);
   }
-  //关闭与服务器连接
-  httpClient.end();
 }
 
 // 获取NTP并同步RTC时间
@@ -617,6 +487,184 @@ void restartSystem(String msg, bool endTips){
     delay(1000);
   }
   ESP.restart();
+}
+
+bool httpsGet(String url, const String &bearerToken, String &responseBody, int &httpCode) {
+  responseBody = "";
+  httpCode = 0;
+
+  if (!url.startsWith("https://")) {
+    return false;
+  }
+
+  String work = url.substring(8);
+  int pathIndex = work.indexOf('/');
+  String host = pathIndex >= 0 ? work.substring(0, pathIndex) : work;
+  String path = pathIndex >= 0 ? work.substring(pathIndex) : "/";
+  int port = 443;
+
+  int colonIndex = host.indexOf(':');
+  if (colonIndex >= 0) {
+    port = host.substring(colonIndex + 1).toInt();
+    host = host.substring(0, colonIndex);
+  }
+
+  NetworkClientSecure client;
+  client.setInsecure();
+  client.setTimeout(queryTimeout / 1000);
+  if (!client.connect(host.c_str(), port)) {
+    return false;
+  }
+
+  client.print(String("GET ") + path + " HTTP/1.1\r\n");
+  client.print(String("Host: ") + host + "\r\n");
+  client.print("User-Agent: DuduClock/2.1\r\n");
+  client.print("Accept: application/json\r\n");
+  client.print("Accept-Encoding: gzip\r\n");
+  if (bearerToken.length() > 0) {
+    client.print(String("Authorization: Bearer ") + bearerToken + "\r\n");
+  }
+  client.print("Connection: close\r\n\r\n");
+
+  unsigned long start = millis();
+  while (client.connected() && !client.available()) {
+    if (millis() - start > (unsigned long)queryTimeout) {
+      client.stop();
+      return false;
+    }
+    delay(1);
+  }
+
+  String statusLine = client.readStringUntil('\n');
+  statusLine.trim();
+  if (statusLine.startsWith("HTTP/1.1 ") || statusLine.startsWith("HTTP/1.0 ")) {
+    httpCode = statusLine.substring(9, 12).toInt();
+  }
+
+  bool isGzip = false;
+  int contentLength = -1;
+  while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) {
+      break;
+    }
+
+    String lowerLine = line;
+    lowerLine.toLowerCase();
+    if (lowerLine.startsWith("content-encoding:") && lowerLine.indexOf("gzip") >= 0) {
+      isGzip = true;
+    } else if (lowerLine.startsWith("content-length:")) {
+      contentLength = line.substring(line.indexOf(':') + 1).toInt();
+    }
+  }
+
+  size_t capacity = contentLength > 0 ? (size_t)contentLength : 1024;
+  uint8_t *rawBody = (uint8_t *)malloc(capacity);
+  if (rawBody == NULL) {
+    client.stop();
+    return false;
+  }
+
+  size_t rawLength = 0;
+  while (client.connected() || client.available()) {
+    while (client.available()) {
+      if (rawLength >= capacity) {
+        size_t nextCapacity = capacity * 2;
+        uint8_t *nextBuffer = (uint8_t *)realloc(rawBody, nextCapacity);
+        if (nextBuffer == NULL) {
+          free(rawBody);
+          client.stop();
+          return false;
+        }
+        rawBody = nextBuffer;
+        capacity = nextCapacity;
+      }
+      rawBody[rawLength++] = (uint8_t)client.read();
+    }
+    delay(1);
+  }
+  client.stop();
+
+  bool success = false;
+  if (isGzip) {
+    success = decompressGzipBody(rawBody, rawLength, responseBody);
+  } else {
+    appendBytesToString(rawBody, rawLength, responseBody);
+    success = true;
+  }
+
+  free(rawBody);
+  return success;
+}
+
+bool decompressGzipBody(uint8_t *compressedBody, size_t compressedSize, String &responseBody) {
+  if (compressedBody == NULL || compressedSize == 0) {
+    return false;
+  }
+
+  size_t outputCapacity = 4096;
+  while (outputCapacity <= 32768) {
+    uint8_t *decompressedBody = (uint8_t *)malloc(outputCapacity);
+    if (decompressedBody == NULL) {
+      return false;
+    }
+
+    uint32_t decompressedSize = 0;
+    int result = ArduinoZlib::libmpq__decompress_zlib(
+      compressedBody,
+      (uint32_t)compressedSize,
+      decompressedBody,
+      (uint32_t)outputCapacity,
+      decompressedSize
+    );
+
+    if (result >= 0 && decompressedSize > 0) {
+      appendBytesToString(decompressedBody, decompressedSize, responseBody);
+      free(decompressedBody);
+      return true;
+    }
+
+    free(decompressedBody);
+    if (result != Z_BUF_ERROR) {
+      return false;
+    }
+    outputCapacity *= 2;
+  }
+
+  return false;
+}
+
+void appendBytesToString(const uint8_t *buffer, size_t length, String &target) {
+  target.reserve(target.length() + length);
+  for (size_t i = 0; i < length; i++) {
+    target += (char)buffer[i];
+  }
+}
+
+String getPollutantValue(const JsonArray &pollutants, const char *code) {
+  if (pollutants.isNull()) {
+    return "--";
+  }
+
+  for (JsonVariant pollutant : pollutants) {
+    JsonObject obj = pollutant.as<JsonObject>();
+    const char *pollutantCode = obj["code"];
+    if (pollutantCode != NULL && strcmp(pollutantCode, code) == 0) {
+      JsonVariant value = obj["concentration"]["value"];
+      if (value.is<float>() || value.is<double>()) {
+        return String(value.as<float>(), 1);
+      }
+      if (value.is<int>()) {
+        return String(value.as<int>());
+      }
+      if (value.is<const char*>()) {
+        return String(value.as<const char*>());
+      }
+    }
+  }
+
+  return "--";
 }
 
 String urlEncode(const String& text) {

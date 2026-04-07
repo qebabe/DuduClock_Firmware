@@ -1,3 +1,4 @@
+#include "tft_setup.h"
 #include <TFT_eSPI.h>
 #include "common.h"
 #include "PreferencesUtil.h"

@@ -12,18 +12,35 @@ void getWiFiCity(){
   city = prefs.getString("city", "");
   adm = prefs.getString("adm", "");
   location = prefs.getString("location", "");
+  latitude = prefs.getString("latitude", "");
+  longitude = prefs.getString("longitude", "");
 
-  publicKeyMm = prefs.getString("publicKeyMm");
+  publicKeyMm = prefs.getString("publicKeyMm", PublicKey);
+  if(publicKeyMm.length() == 0){
+    publicKeyMm = PublicKey;
+  }
   publicKeyMm.toCharArray(charPublicKey, 61);
   Serial.println("get:" + publicKeyMm);
-  privateKeyMm = prefs.getString("privateKeyMm");
+  privateKeyMm = prefs.getString("privateKeyMm", PrivateKey);
+  if(privateKeyMm.length() == 0){
+    privateKeyMm = PrivateKey;
+  }
   privateKeyMm.toCharArray(charPrivateKey, 65);
   Serial.println("get:" + privateKeyMm);
-  keyID = prefs.getString("keyID");
+  keyID = prefs.getString("keyID", KeyID);
+  if(keyID.length() == 0){
+    keyID = KeyID;
+  }
   Serial.println("get:" + keyID);
-  apiHost = prefs.getString("apiHost");
+  apiHost = prefs.getString("apiHost", ApiHost);
+  if(apiHost.length() == 0){
+    apiHost = ApiHost;
+  }
   Serial.println("get:" + apiHost);
-  projectID = prefs.getString("projectID");
+  projectID = prefs.getString("projectID", ProjectID);
+  if(projectID.length() == 0){
+    projectID = ProjectID;
+  }
   Serial.println("get:" + projectID);
 
   prefs.end();
@@ -37,6 +54,8 @@ void setWiFiCity(){
   prefs.putString("city", city);
   prefs.putString("adm", adm);
   prefs.putString("location", location);
+  prefs.putString("latitude", latitude);
+  prefs.putString("longitude", longitude);
   prefs.end();
 }
 void setHeFeng(){
@@ -57,6 +76,8 @@ void clearWiFiCity(){
   prefs.remove("city");
   prefs.remove("adm");
   prefs.remove("location");
+  prefs.remove("latitude");
+  prefs.remove("longitude");
 
   prefs.remove("publicKeyMm");
   prefs.remove("privateKeyMm");
@@ -85,10 +106,17 @@ void setBackColor(int backColor){
 // 测试用，在读取NVS之前，先写入自己的Wifi信息，免得每次浪费时间再配网
 void setInfo4Test(){
   prefs.begin("clock");
-  prefs.putString("ssid", "sh.soft");
-  prefs.putString("pass", "wscc6783234");
-  prefs.putString("city", "江阴");
+  prefs.putString("ssid", "yunjiu");
+  prefs.putString("pass", "610610610");
+  prefs.putString("city", "烟台");
   prefs.putString("adm", "");
-  prefs.putString("location", "");
+  prefs.putString("location", "101120501");
+  prefs.putString("latitude", "37.46");
+  prefs.putString("longitude", "121.45");
+  prefs.putString("publicKeyMm", PublicKey);
+  prefs.putString("privateKeyMm", PrivateKey);
+  prefs.putString("keyID", KeyID);
+  prefs.putString("apiHost", ApiHost);
+  prefs.putString("projectID", ProjectID);
   prefs.end();
 }
